@@ -1,0 +1,5 @@
+{
+  "name": "CS A-Level Flashcards",
+  "description": "A spaced-repetition flashcard app for Cambridge International AS & A Level Computer Science, featuring chapter selection and the Ebbinghaus forgetting curve algorithm.",
+  "requestFramePermissions": []
+}
