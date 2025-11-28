@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Brain, BookOpen, CheckCircle2, Layers, RotateCcw, Sparkles, Signal, AlertCircle, AlertTriangle, Activity } from 'lucide-react';
+import { Brain, BookOpen, CheckCircle2, Layers, RotateCcw, Sparkles, Signal, AlertCircle, AlertTriangle, Activity, GraduationCap } from 'lucide-react';
 import { CHAPTERS, TERMS } from './data';
 import { UserProgress, Rating, Term } from './types';
 import { calculateNextReview, isDue } from './utils/sm2';
 import { Card } from './components/Card';
+import { Quiz } from './components/Quiz';
 
 // Styles needed for the 3D flip effect not included in standard Tailwind
 const customStyles = `
@@ -21,6 +22,7 @@ export default function App() {
   const [progress, setProgress] = useState<Record<string, UserProgress>>({});
   const [sessionDeck, setSessionDeck] = useState<Term[]>([]);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const [quizActive, setQuizActive] = useState(false);
 
   // Load progress from local storage
   useEffect(() => {
@@ -88,12 +90,14 @@ export default function App() {
 
     setSessionDeck(deck);
     setSelectedChapter(chapterId);
+    setQuizActive(false); // Ensure quiz is off when starting a session
     setActiveCardIndex(0);
   };
 
   const exitSession = () => {
     setSelectedChapter(null);
     setSessionDeck([]);
+    setQuizActive(false);
     setActiveCardIndex(0);
   };
 
@@ -114,6 +118,12 @@ export default function App() {
       return intervalA - intervalB;
     });
   }, [selectedChapter, progress]);
+
+  // Statistics calculation
+  const totalCards = TERMS.length;
+  const learnedCards = useMemo(() => {
+    return Object.values(progress).filter((p: UserProgress) => p.repetition > 0).length;
+  }, [progress]);
 
   const getStrengthColor = (p?: UserProgress) => {
     if (!p) return 'bg-slate-200 text-slate-400'; // New
@@ -145,12 +155,25 @@ export default function App() {
       
       <header className="max-w-6xl mx-auto mb-10 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-lg text-white">
+          <div className="bg-blue-600 p-2 rounded-lg text-white self-start mt-1">
             <Brain size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">CS Revision</h1>
-            <p className="text-sm text-slate-500">AS & A Level Computer Science</p>
+            <h1 className="text-2xl font-bold text-slate-800">9618 CS Vocabulary Flashcards</h1>
+            <p className="text-sm text-slate-500">AS Level Computer Science — Made by Luna</p>
+            
+            {!selectedChapter && (
+              <div className="flex flex-wrap gap-4 mt-3 text-xs font-medium text-slate-500">
+                <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-md border border-slate-200 shadow-sm">
+                  <BookOpen size={14} className="text-blue-500"/>
+                  <span>Total Terms: <span className="text-slate-800 font-bold">{totalCards}</span></span>
+                </div>
+                <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-md border border-slate-200 shadow-sm">
+                  <CheckCircle2 size={14} className="text-green-500"/>
+                  <span>Memorized: <span className="text-slate-800 font-bold">{learnedCards}</span></span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         {selectedChapter && (
@@ -173,11 +196,6 @@ export default function App() {
               const dueCount = chapterTerms.filter(t => isDue(progress[t.id])).length;
               
               // Calculate retention score
-              // We use a weighted score because a simple average of intervals can be misleading for new chapters.
-              // Strong (Easy, Interval >= 4) = 1.0
-              // Moderate (Good, Interval < 4 but Passed) = 0.7
-              // Weak (New or Failed) = 0
-              // This ensures that if a user rates everything as "Good" (0.7), the average is 0.7, which qualifies as Green/Good.
               const retentionScore = chapterTerms.reduce((sum, t) => {
                 const p = progress[t.id];
                 if (!p || p.repetition === 0) return sum + 0;
@@ -193,17 +211,14 @@ export default function App() {
 
               if (hasStarted) {
                 if (retentionScore < 0.4) {
-                   // Score < 0.4: Mostly weak/failed
                    StatusIcon = AlertTriangle;
                    statusColor = 'bg-red-50 text-red-600 border-red-200';
                    statusText = 'Very Difficult';
                 } else if (retentionScore < 0.7) {
-                   // Score 0.4 - 0.69: Mixed results or mostly "Good" but with some failures
                    StatusIcon = AlertCircle;
                    statusColor = 'bg-orange-50 text-orange-600 border-orange-200';
                    statusText = 'Warning';
                 } else {
-                   // Score >= 0.7: Mostly Good or Easy
                    StatusIcon = Signal;
                    statusColor = 'bg-green-50 text-green-600 border-green-200';
                    statusText = 'Good';
@@ -252,6 +267,12 @@ export default function App() {
               );
             })}
           </div>
+        ) : quizActive ? (
+          /* Quiz View */
+          <Quiz 
+            terms={TERMS.filter(t => t.chapterId === selectedChapter)} 
+            onExit={() => setQuizActive(false)} 
+          />
         ) : (
           /* Study Mode View */
           <div className="flex flex-col items-center justify-center">
@@ -284,7 +305,7 @@ export default function App() {
                      You've reviewed all due cards. Here is your memory status for this chapter.
                    </p>
                    
-                   <div className="flex gap-3 justify-center mb-10">
+                   <div className="flex flex-wrap gap-3 justify-center mb-10">
                      <button 
                        onClick={() => exitSession()}
                        className="px-5 py-2 rounded-lg font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
@@ -297,6 +318,13 @@ export default function App() {
                      >
                        <RotateCcw size={16} />
                        Review All Again
+                     </button>
+                     <button 
+                       onClick={() => setQuizActive(true)}
+                       className="px-5 py-2 rounded-lg font-bold bg-purple-600 text-white hover:bg-purple-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
+                     >
+                       <GraduationCap size={18} />
+                       Start Quiz
                      </button>
                    </div>
                  </div>
